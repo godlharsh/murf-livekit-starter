@@ -10,6 +10,7 @@ export interface AppConfig {
 
   logo: string;
   startButtonText: string;
+
   accent?: string;
   logoDark?: string;
   accentDark?: string;
@@ -18,14 +19,18 @@ export interface AppConfig {
   audioVisualizerColor?: `#${string}`;
   audioVisualizerColorDark?: `#${string}`;
   audioVisualizerColorShift?: number;
+
   audioVisualizerBarCount?: number;
+
   audioVisualizerGridRowCount?: number;
   audioVisualizerGridColumnCount?: number;
+
   audioVisualizerRadialBarCount?: number;
   audioVisualizerRadialRadius?: number;
+
   audioVisualizerWaveLineWidth?: number;
 
-  // agent dispatch configuration
+  // Agent dispatch configuration
   agentName?: string;
 
   // LiveKit Cloud Sandbox configuration
@@ -33,40 +38,72 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'Murf AI',
-  pageTitle: 'Voice Agent Starter',
-  pageDescription: 'A voice agent powered by Murf Falcon — the fastest TTS API',
+  // ==========================================================
+  // BHARAT BUDDY BRANDING
+  // ==========================================================
+
+  companyName: 'Bharat Buddy',
+
+  pageTitle: 'Your AI Voice Tutor',
+
+  pageDescription:
+    'Learn, practice, and improve with your friendly AI voice tutor.',
+
+  // ==========================================================
+  // FEATURES
+  // ==========================================================
 
   supportsChatInput: true,
+
   supportsVideoInput: true,
+
   supportsScreenShare: true,
+
   isPreConnectBufferEnabled: true,
 
+  // ==========================================================
+  // BRANDING
+  // ==========================================================
+
   logo: '/murf-logo.svg',
-  accent: '#6366F1',
+
   logoDark: '/murf-logo-dark.svg',
-  accentDark: '#818cf8',
-  startButtonText: 'Start talking',
 
-  // optional: audio visualization configuration
-  // audioVisualizerType: 'bar',
-  // audioVisualizerColor: '#002cf2',
-  // audioVisualizerColorDark: '#1fd5f9',
-  // audioVisualizerColorShift: 0.3,
-  // audioVisualizerBarCount: 5,
-  // audioVisualizerType: 'radial',
-  // audioVisualizerRadialBarCount: 24,
-  // audioVisualizerRadialRadius: 100,
-  // audioVisualizerType: 'grid',
-  // audioVisualizerGridRowCount: 25,
-  // audioVisualizerGridColumnCount: 25,
-  // audioVisualizerType: 'wave',
-  // audioVisualizerWaveLineWidth: 3,
-  // audioVisualizerType: 'aura',
+  // ==========================================================
+  // COLORS
+  // ==========================================================
 
-  // agent dispatch configuration
-  agentName: process.env.AGENT_NAME ?? undefined,
+  accent: '#6366F1',
 
-  // LiveKit Cloud Sandbox configuration
+  accentDark: '#818CF8',
+
+  // ==========================================================
+  // START BUTTON
+  // ==========================================================
+
+  startButtonText: 'Start Learning',
+
+  // ==========================================================
+  // AUDIO VISUALIZER
+  // ==========================================================
+
+  audioVisualizerType: 'aura',
+
+  audioVisualizerColor: '#6366F1',
+
+  audioVisualizerColorDark: '#818CF8',
+
+  audioVisualizerColorShift: 0.3,
+
+  // ==========================================================
+  // AGENT DISPATCH
+  // ==========================================================
+
+  agentName: process.env.AGENT_NAME ?? 'my-agent',
+
+  // ==========================================================
+  // LIVEKIT CLOUD SANDBOX
+  // ==========================================================
+
   sandboxId: undefined,
 };

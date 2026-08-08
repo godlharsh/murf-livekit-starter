@@ -2,6 +2,7 @@ import logging
 
 from dotenv import load_dotenv
 from livekit import rtc
+
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -12,63 +13,93 @@ from livekit.agents import (
     tokenize,
     room_io,
 )
-from livekit.plugins import murf, silero, groq, deepgram, noise_cancellation
+
+from livekit.plugins import (
+    murf,
+    silero,
+    groq,
+    deepgram,
+    noise_cancellation,
+)
+
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
+
 
 logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
 
+# ============================================================
+# SYSTEM PROMPT
+# ============================================================
+
 SYSTEM_PROMPT = """
-DENTITY
-You are Bharat Buddy, a friendly AI Voice Tutor for Indian students participating in the Learning & Literacy initiative. Your goal is to make learning simple, interactive, and enjoyable.
-
-OBJECTIVES
-1. Explain school and college concepts in simple, easy-to-understand language.
-2. Help students improve their English speaking, vocabulary, grammar, and communication skills.
-3. Encourage students by asking follow-up questions and motivating them to keep learning.
-
-KNOWLEDGE
-- You can explain educational concepts, grammar, vocabulary, general science, mathematics, computer science, and communication skills.
-- If you are unsure about something, honestly say you don't know instead of making up information.
-- Keep explanations accurate and easy to understand.
-
 LANGUAGE
-- Reply in the same language style used by the student.
-- If the student speaks Hinglish, reply in Hinglish.
-- If the student speaks English, reply in English.
-- If the student speaks Hindi, reply in Hindi.
-- Use simple, friendly, conversational language suitable for students.
 
-GUARDRAILS
-- Never help a student cheat in a live exam or interview.
-- Never provide direct answers for active tests or assignments intended to be submitted as the student's own work.
-- Never insult, shame, or discourage a student for giving a wrong answer.
-- Never claim that a student has a learning disability or any medical condition.
-- If a student asks for help beyond your educational role or appears to need professional support, politely suggest talking to a teacher, parent, or qualified professional.
-- If asked something outside your knowledge, clearly say you are not sure instead of guessing.
+- Understand whether the user is speaking English, Hindi, or Hinglish
+  and respond naturally in the same language.
 
-ESCALATION
-If a request is outside your role, respond politely like:
-"I'm sorry, but I can't help with that. I recommend discussing this with your teacher, parent, or another trusted adult. I'd be happy to explain the concept or help you learn it instead."
+- If the user speaks English, respond in natural, clear Indian English.
 
-STYLE
-- Start every new conversation with:
-  "Namaste! I'm Bharat Buddy, your AI Voice Tutor. I can help you learn in English, Hindi, or Hinglish. I can explain concepts, improve your English, and answer study-related questions. What would you like to learn today?"
-- Keep responses between 2 and 4 short sentences.
-- Speak naturally, warmly, and positively.
-- Avoid long paragraphs and bullet points while speaking.
-- Ask one simple follow-up question whenever it helps continue the conversation.
+- If the user speaks Hindi, respond in natural Indian Hindi with
+  clear Hindi pronunciation, natural Indian rhythm, and natural
+  Indian sentence flow.
+
+- Do NOT speak Hindi with an American, British, or foreign accent.
+
+- If the user speaks Hinglish, respond in natural Indian Hinglish,
+  like a normal Indian student or teacher speaking casually.
+
+- Keep Hindi and Hinglish pronunciation natural for Indian listeners.
+
+- Use simple, everyday Hindi instead of highly formal or Sanskritized Hindi.
+
+- Common English words such as "concept", "example", "practice",
+  "problem", "answer", and "explain" can naturally remain in English
+  when speaking Hinglish.
+
+- If the user speaks English, continue in English.
+
+- If the user speaks Hindi, continue in Hindi.
+
+- If the user speaks Hinglish, continue in Hinglish.
+
+- Follow the user's language naturally and do not randomly switch
+  between languages.
+
+- If the user's speech is unclear, use the conversation context to
+  determine whether they are speaking English, Hindi, or Hinglish.
+
+- Keep the overall tone friendly, casual, clear, and natural for
+  Indian students.
+
+- Keep sentences short and conversational because all responses
+  are spoken aloud.
 """
 
 
+# ============================================================
+# ASSISTANT
+# ============================================================
+
 class Assistant(Agent):
     def __init__(self) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+        super().__init__(
+            instructions=SYSTEM_PROMPT
+        )
+
+
+# ============================================================
+# LIVEKIT SERVER
+# ============================================================
 
 server = AgentServer()
 
+
+# ============================================================
+# PREWARM
+# ============================================================
 
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
@@ -77,70 +108,105 @@ def prewarm(proc: JobProcess):
 server.setup_fnc = prewarm
 
 
+# ============================================================
+# VOICE AGENT
+# ============================================================
+
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
+
+    # --------------------------------------------------------
+    # Logging
+    # --------------------------------------------------------
 
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Connect to LiveKit room first
-    await ctx.connect()
-
+    # ========================================================
+    # VOICE AI PIPELINE
+    # ========================================================
 
     session = AgentSession(
 
-        # Speech to Text
+        # ----------------------------------------------------
+        # SPEECH TO TEXT
+        # ----------------------------------------------------
+
         stt=deepgram.STT(
-            model="nova-3"
+            model="nova-3",
+            language="multi",
         ),
 
-        # LLM Brain
-        llm=groq.LLM(
-    model="llama-3.3-70b-versatile",
-),
+        # ----------------------------------------------------
+        # LARGE LANGUAGE MODEL
+        # ----------------------------------------------------
 
-        # Text to Speech
+        llm=groq.LLM(
+            model="llama-3.1-8b-instant",
+        ),
+
+        # ----------------------------------------------------
+        # TEXT TO SPEECH
+        # ----------------------------------------------------
+
         tts=murf.TTS(
-            voice="Pooja",
+            voice="Abhinav",
             style="Conversational",
             tokenizer=tokenize.basic.SentenceTokenizer(
                 min_sentence_len=2
             ),
-            text_pacing=True
+            text_pacing=True,
         ),
 
-        # Voice detection
+        # ----------------------------------------------------
+        # MULTILINGUAL TURN DETECTION
+        # ----------------------------------------------------
+
         turn_detection=MultilingualModel(),
+
+        # ----------------------------------------------------
+        # VOICE ACTIVITY DETECTION
+        # ----------------------------------------------------
 
         vad=ctx.proc.userdata["vad"],
 
-        preemptive_generation=False,
+        # ----------------------------------------------------
+        # PREEMPTIVE GENERATION
+        # ----------------------------------------------------
+
+        preemptive_generation=True,
     )
 
+    # ========================================================
+    # START SESSION
+    # ========================================================
 
     await session.start(
         agent=Assistant(),
         room=ctx.room,
-
         room_options=room_io.RoomOptions(
-
             audio_input=room_io.AudioInputOptions(
-
                 noise_cancellation=lambda params: (
                     noise_cancellation.BVCTelephony()
                     if params.participant.kind
                     == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
                     else noise_cancellation.BVC()
                 ),
-
             ),
         ),
     )
 
-    await session.generate_reply(
-    instructions="Introduce yourself as EduBuddy and greet the user only once."
-)
+    # ========================================================
+    # CONNECT TO LIVEKIT ROOM
+    # ========================================================
+
+    await ctx.connect()
+
+
+# ============================================================
+# RUN APPLICATION
+# ============================================================
 
 if __name__ == "__main__":
     cli.run_app(server)
