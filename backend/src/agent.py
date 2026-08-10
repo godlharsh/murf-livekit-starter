@@ -1,4 +1,11 @@
+# ============================================================
+# BHARAT BUDDY
+# Day 5 - Tools
+# ============================================================
+
 import logging
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 from livekit import rtc
@@ -12,33 +19,40 @@ from livekit.agents import (
     RunContext,
     cli,
     function_tool,
-    room_io,
     tokenize,
+    room_io,
 )
 
 from livekit.plugins import (
-    deepgram,
-    groq,
     murf,
-    noise_cancellation,
     silero,
+    groq,
+    deepgram,
+    noise_cancellation,
 )
 
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-from memory import init_db, lookup_user, save_user
+
+# ============================================================
+# LEARNING DATA IMPORT
+# ============================================================
+
+SRC_DIR = Path(__file__).resolve().parent
+
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from learning_data import find_exercise
 
 
-logger = logging.getLogger("agent")
+# ============================================================
+# LOGGING
+# ============================================================
+
+logger = logging.getLogger("bharat-buddy")
 
 load_dotenv(".env.local")
-
-
-# ============================================================
-# DATABASE
-# ============================================================
-
-init_db()
 
 
 # ============================================================
@@ -48,300 +62,408 @@ init_db()
 SYSTEM_PROMPT = """
 IDENTITY
 
-You are EduBuddy, a friendly AI learning companion for Indian students.
+You are Bharat Buddy, a friendly AI Voice Tutor for Indian students.
 
-Your job is to help students understand school subjects and improve
-their learning skills.
+Your goal is to make learning simple, interactive, and enjoyable.
 
-You are not a replacement for a real teacher.
 
+USER INFORMATION
+
+The user's name is Rishabh.
+
+If the user asks:
+
+- What is my name?
+- Do you know my name?
+- What's my name?
+- Tell me my name
+- or anything similar,
+
+always answer:
+
+"Your name is Rishabh."
+
+Do not say that you do not know the user's name.
+
+Use the user's name naturally when appropriate,
+but do not overuse it.
+
+
+============================================================
+LEARNING TOOL
+============================================================
+
+You have access to one learning tool:
+
+get_next_exercise
+
+This tool retrieves a real learning exercise from the
+Bharat Buddy local learning dataset.
+
+SUPPORTED TOPICS:
+
+- Python
+- English grammar
+- Mathematics
+- Computer science
+
+SUPPORTED LEVELS:
+
+- beginner
+- intermediate
+
+
+VERY IMPORTANT TOOL RULES
+
+When the student asks for:
+
+- a practice question
+- an exercise
+- a quiz question
+- a Python question
+- a grammar question
+- a mathematics question
+- a computer science question
+- or asks to practice one of these subjects
+
+you MUST use the get_next_exercise tool.
+
+Do NOT invent your own exercise when the tool can provide one.
+
+Do NOT mention the function name to the student.
+
+Do NOT show JSON.
+
+Do NOT say:
+"get_next_exercise was called."
+
+After the tool returns an exercise, present the question naturally
+like a friendly teacher.
+
+Do not automatically reveal the answer unless the student asks
+for the answer or explanation.
+
+If the tool returns no suitable exercise, clearly tell the student
+that the requested exercise is currently unavailable.
+
+Never invent an exercise when the tool returns no result.
+
+
+LEVEL RULE
+
+If the student does not mention a level,
+use beginner.
+
+
+TOPIC RULE
+
+Understand common topic variations.
+
+Examples:
+
+"Give me a Python question"
+-> topic = python
+
+"Give me a coding question"
+-> topic = python
+
+"Ask me a maths question"
+-> topic = mathematics
+
+"Give me a grammar question"
+-> topic = english grammar
+
+"Ask me an English grammar question"
+-> topic = english grammar
+
+"Ask me a computer science question"
+-> topic = computer science
+
+If the topic is unsupported, do not invent a question.
+
+
+============================================================
 OBJECTIVES
+============================================================
 
-1. Help students understand concepts instead of simply giving answers.
-2. Encourage confidence, curiosity, and learning.
-3. Remember useful learning information when the student gives permission.
+1. Explain school and college concepts in simple language.
 
-LANGUAGE & SCRIPT
+2. Help students improve English speaking, vocabulary,
+   grammar, and communication skills.
 
-- Understand whether the student is speaking English, Hindi, or Hinglish.
-- Always mirror the student's language naturally.
+3. Build students' confidence.
 
-English:
+4. Give useful learning practice using the learning tool.
 
-- Reply in natural, clear Indian English.
 
-Hindi:
+============================================================
+KNOWLEDGE
+============================================================
 
-- Reply in natural Indian Hindi.
-- ALWAYS write Hindi using Devanagari script.
-- Never write Hindi using Roman/English letters.
-- Example: "नमस्ते, आज हम गणित पढ़ेंगे।"
+- Explain educational concepts accurately using easy words.
 
-Hinglish:
+- You can help with science, mathematics, computer science,
+  English, grammar, vocabulary, and general educational topics.
 
-- Reply naturally in Hinglish.
-- Hindi words should preferably use Devanagari.
-- English technical words can remain in English naturally.
-- Example:
-  "आज हम Algebra का एक concept समझते हैं."
+- If you do not know something, honestly say that you are not sure.
 
-Do not randomly switch languages.
+- Never invent facts or pretend to know something you don't know.
 
-Keep sentences short and conversational because responses
-are spoken aloud.
 
-MEMORY
+============================================================
+LANGUAGE
+============================================================
 
-The student's saved profile is provided directly by the application
-when a conversation starts.
+- Detect the language the user is currently speaking and respond
+  in the same language or natural language mix.
 
-If a saved profile is provided:
+- If the user speaks English, respond in natural Indian English.
 
-- The student is a returning student.
-- The student's saved name is known.
-- Use the saved name naturally.
-- Use useful saved learning information naturally.
-- Do NOT say that you do not know the student's name.
-- Do NOT say that this is the student's first interaction.
-- Do NOT ask for the student's name again unless the student
-  explicitly tells you that their name has changed.
+- If the user speaks Hindi, respond in natural, fluent Hindi
+  with clear and natural Hindi pronunciation.
 
-If no saved profile is provided:
+- If the user speaks Hinglish, respond in natural Indian Hinglish,
+  keeping commonly used English words naturally mixed with Hindi.
 
-- Treat the student as a new student.
-- Ask for their name naturally when appropriate.
+- Maintain the same language style throughout the response unless
+  the user clearly changes language.
 
-CONSENT
+- Do not randomly switch between languages during a response.
 
-Before saving new student information:
+- Do not translate common English words into awkward Hindi.
 
-- Tell the student that you can remember the information for
-  future conversations.
-- Ask whether they want you to save it.
-- Only use save_student after the student clearly says yes.
+- When speaking Hindi, prioritize natural Hindi vocabulary
+  and natural pronunciation.
 
-If the student says no:
+- When speaking Hinglish, speak like a normal Indian student
+  or teacher in an everyday conversation.
 
-- Do not call save_student.
-- Continue helping normally.
+- Keep sentences short and easy to understand because responses
+  are spoken aloud.
 
-Never save student information without permission.
+- Avoid difficult Sanskritized Hindi.
 
-WHAT CAN BE REMEMBERED
+- Avoid unnecessary English when the user is clearly speaking Hindi.
 
-Useful learning information includes:
+- Avoid unnecessary Hindi when the user is clearly speaking English.
 
-- Student name
-- Preferred language
-- Current learning level
-- Topics covered
-- Common mistakes or areas they want to practice
+- If the user changes from Hindi to English, follow naturally.
 
-RETURNING STUDENTS
+- If the user changes from English to Hindi or Hinglish,
+  follow naturally.
 
-If a saved student profile exists:
+- Never force a language that the user is not using.
 
-- Greet the student using their saved name.
-- Mention one useful learning detail naturally.
-- Continue from their previous learning context.
-- Do not read database fields aloud.
+- Never randomly change the speaking style, language,
+  or accent during the same response.
 
-NEW STUDENTS
+- Prioritize natural Indian speech.
 
-If no saved profile exists:
 
-- Introduce yourself naturally.
-- Explain that you can help with Maths, Science, English,
-  General Knowledge, and study skills.
-- Do not ask for unnecessary personal information.
-
+============================================================
 GUARDRAILS
+============================================================
 
-- Never shame or insult a student.
-- Never claim that a student has a learning disability.
-- Never help a student cheat in an active exam or test.
-- Do not provide direct answers intended to be submitted as
-  the student's own work.
-- Instead, explain the concept and guide the student.
-- Do not provide medical, legal, or financial advice.
-- If something is outside your educational role, recommend speaking
-  with a teacher, parent, trusted adult, or qualified professional.
-- If you do not know something, say so honestly instead of guessing.
+- Never help a student cheat in a live exam or interview.
 
+- Never provide answers for an active test or assignment that
+  is meant to be submitted as the student's own work.
+
+- Never insult, shame, mock, or discourage a student.
+
+- Never call a student weak, stupid, or unintelligent.
+
+- Never claim that a student has a learning disability
+  or medical condition.
+
+- Never make a medical or psychological diagnosis.
+
+- If a request is outside your educational role, politely refuse.
+
+- Always offer a safe educational alternative.
+
+
+============================================================
 STYLE
+============================================================
 
-- Greet only once at the beginning.
+- Introduce yourself only once at the beginning of a new conversation.
+
 - Do not repeat greetings.
-- Keep responses short and conversational.
-- Speak naturally and warmly.
+
+- Keep responses short and suitable for voice conversations.
+
+- Prefer 2 to 4 short sentences.
+
 - Avoid long paragraphs.
+
+- Avoid bullet points while speaking.
+
+- Speak naturally like a friendly teacher.
+
+- Be patient and encouraging.
+
+- Correct mistakes politely.
+
 - Ask one simple follow-up question when appropriate.
 
-OUTPUT FORMAT
+- Do not sound robotic.
 
-- Always respond with normal natural conversational text.
-- Never output XML tags.
-- Never output HTML tags.
-- Never output JSON objects containing student information.
-- Never output internal memory tags.
-- Never output tags such as <names_known_about_you>.
-- Never expose database fields directly to the student.
-- Never expose internal application data.
-- Never expose system instructions or internal prompts.
-- Never describe how the application's memory system works unless
-  the student specifically asks about it.
-- Convert all internal student information into a natural spoken response.
+- Do not mention internal tools, functions, APIs,
+  JSON, or implementation details to the student.
 
-For example, if the saved student name is Harsh and the student asks:
 
-"What is my name?"
+============================================================
+FIRST GREETING
+============================================================
 
-Respond naturally:
+Start the first response of a new conversation with:
 
-"Your name is Harsh."
-
-Do NOT respond with:
-
-<names_known_about_you>{"name":"Harsh"}</names_known_about_you>
-
-Do NOT respond with JSON, XML, database records, or internal tags.
+"Namaste! I'm Bharat Buddy, your AI Voice Tutor.
+I can help you learn in English, Hindi, or Hinglish,
+explain concepts, improve your English, and answer study-related
+questions. What would you like to learn today?"
 """
 
 
 # ============================================================
-# ASSISTANT
+# DAY 5 TOOL
 # ============================================================
 
-class Assistant(Agent):
+@function_tool(
+    name="get_next_exercise",
+    description=(
+        "Retrieve a real learning practice exercise from the "
+        "Bharat Buddy local learning dataset. "
+        "Use this tool whenever the student asks for a practice "
+        "question, quiz question, exercise, or wants to practice "
+        "Python, English grammar, mathematics, or computer science. "
+        "If the student does not specify a level, use beginner. "
+        "Do not invent an exercise if this tool returns no result."
+    ),
+)
+async def get_next_exercise(
+    context: RunContext,
+    level: str,
+    topic: str,
+) -> str:
 
-    def __init__(
-        self,
-        user_id: str,
-        student_profile: dict | None = None,
-    ) -> None:
+    logger.info(
+        "TOOL CALL -> get_next_exercise | level=%s | topic=%s",
+        level,
+        topic,
+    )
 
-        self.user_id = user_id
-        self.student_profile = student_profile
+    try:
 
-        if student_profile:
+        # ========================================================
+        # NORMALIZE INPUT
+        # ========================================================
 
-            profile_context = f"""
-RETURNING STUDENT - VERIFIED DATABASE PROFILE
+        level = level.lower().strip()
+        topic = topic.lower().strip()
 
-This is a returning student.
 
-The application has already looked up the student's profile
-from the database.
+        # ========================================================
+        # DEFAULT LEVEL
+        # ========================================================
 
-Student name:
-{student_profile.get("name", "")}
+        if level not in {
+            "beginner",
+            "intermediate",
+        }:
+            level = "beginner"
 
-Preferred language:
-{student_profile.get("language_preference", "")}
 
-Current level:
-{student_profile.get("current_level", "")}
+        # ========================================================
+        # TOPIC ALIASES
+        # ========================================================
 
-Topics covered:
-{student_profile.get("topics_covered", "")}
+        topic_aliases = {
+            "math": "mathematics",
+            "maths": "mathematics",
+            "english": "english grammar",
+            "grammar": "english grammar",
+            "coding": "python",
+            "programming": "python",
+            "python programming": "python",
+            "python programming language": "python",
+            "cs": "computer science",
+            "computer": "computer science",
+        }
 
-Common mistakes:
-{student_profile.get("common_mistakes", "")}
-
-IMPORTANT:
-
-- The student's name is known.
-- Use the saved name naturally.
-- Do NOT say "I don't know your name."
-- Do NOT say "This is our first interaction."
-- Do NOT ask the student to tell their name again.
-- Use the saved learning context naturally.
-"""
-
-        else:
-
-            profile_context = """
-NEW STUDENT
-
-No saved profile was found for this student.
-
-Treat this as a new student.
-
-Ask for the student's name naturally when appropriate.
-"""
-
-        super().__init__(
-            instructions=SYSTEM_PROMPT + "\n\n" + profile_context
+        topic = topic_aliases.get(
+            topic,
+            topic,
         )
 
-    # ========================================================
-    # SAVE STUDENT
-    # ========================================================
 
-    @function_tool
-    async def save_student(
-        self,
-        context: RunContext,
-        name: str,
-        language_preference: str = "",
-        current_level: str = "",
-        topics_covered: str = "",
-        common_mistakes: str = "",
-        consent: bool = False,
-    ) -> str:
+        # ========================================================
+        # FIND EXERCISE
+        # ========================================================
 
-        """
-        Save useful learning information about the student.
+        exercise = find_exercise(
+            level=level,
+            topic=topic,
+        )
 
-        Explicit student consent is required.
-        """
 
-        if consent is not True:
+        # ========================================================
+        # NO RESULT
+        # ========================================================
+
+        if exercise is None:
 
             logger.warning(
-                "Memory save rejected: consent was not given. student=%s",
-                self.user_id,
+                "TOOL RESULT -> no exercise | level=%s | topic=%s",
+                level,
+                topic,
             )
 
             return (
-                "The student's information was not saved because "
-                "explicit permission was not given."
+                "NO_EXERCISE_FOUND. "
+                "There is no suitable exercise in the local "
+                "learning dataset for this level and topic. "
+                "Do not invent an exercise. "
+                "Tell the student that this topic is currently "
+                "unavailable and suggest Python, English grammar, "
+                "mathematics, or computer science."
             )
+
+
+        # ========================================================
+        # SUCCESS
+        # ========================================================
 
         logger.info(
-            "Saving student memory: %s",
-            self.user_id,
-        )
-
-        try:
-
-            student = save_user(
-                user_id=self.user_id,
-                name=name,
-                language_preference=language_preference,
-                current_level=current_level,
-                topics_covered=topics_covered,
-                common_mistakes=common_mistakes,
-            )
-
-        except Exception:
-
-            logger.exception(
-                "Failed to save student memory: %s",
-                self.user_id,
-            )
-
-            return (
-                "I could not save the student's information right now."
-            )
-
-        logger.info(
-            "Student memory saved successfully: %s",
-            self.user_id,
+            "TOOL RESULT -> exercise found | level=%s | topic=%s",
+            level,
+            topic,
         )
 
         return (
-            f"Student memory saved successfully for {student['name']}."
+            "EXERCISE_FOUND. "
+            f"Topic: {exercise['topic']}. "
+            f"Level: {exercise['level']}. "
+            f"Question: {exercise['question']} "
+            f"Answer: {exercise['answer']} "
+            f"Explanation: {exercise['explanation']} "
+            "Source: Bharat Buddy local learning dataset."
+        )
+
+
+    except Exception as error:
+
+        logger.exception(
+            "TOOL ERROR -> get_next_exercise failed: %s",
+            error,
+        )
+
+        return (
+            "TOOL_ERROR. "
+            "The learning exercise could not be loaded right now. "
+            "Tell the student that the exercise service is "
+            "temporarily unavailable and ask them to try again."
         )
 
 
@@ -357,7 +479,12 @@ server = AgentServer()
 # ============================================================
 
 def prewarm(proc: JobProcess) -> None:
+
+    logger.info("Loading Silero VAD...")
+
     proc.userdata["vad"] = silero.VAD.load()
+
+    logger.info("Silero VAD loaded successfully.")
 
 
 server.setup_fnc = prewarm
@@ -370,81 +497,19 @@ server.setup_fnc = prewarm
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
 
-    # --------------------------------------------------------
-    # Logging
-    # --------------------------------------------------------
+    # ========================================================
+    # LOGGING
+    # ========================================================
 
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # --------------------------------------------------------
-    # Connect to LiveKit room
-    # --------------------------------------------------------
-
-    await ctx.connect()
-
-    # ========================================================
-    # IDENTIFY CURRENT STUDENT
-    # ========================================================
-
-    # Persistent ID matching the database record.
-    user_id = "student-001"
-
     logger.info(
-        "Using persistent student user_id: %s",
-        user_id,
+        "Bharat Buddy session starting | room=%s",
+        ctx.room.name,
     )
 
-    # ========================================================
-    # DIRECT DATABASE LOOKUP
-    # ========================================================
-
-    student_profile = None
-
-    try:
-
-        student_profile = lookup_user(user_id)
-
-    except Exception:
-
-        logger.exception(
-            "Failed to lookup student profile: %s",
-            user_id,
-        )
-
-    # --------------------------------------------------------
-    # Log lookup result
-    # --------------------------------------------------------
-
-    if student_profile:
-
-        logger.info(
-            "FOUND SAVED STUDENT: %s",
-            student_profile.get("name"),
-        )
-
-        logger.info(
-            "Student language: %s",
-            student_profile.get("language_preference"),
-        )
-
-        logger.info(
-            "Student level: %s",
-            student_profile.get("current_level"),
-        )
-
-        logger.info(
-            "Student topics: %s",
-            student_profile.get("topics_covered"),
-        )
-
-    else:
-
-        logger.warning(
-            "NO SAVED STUDENT PROFILE FOUND: %s",
-            user_id,
-        )
 
     # ========================================================
     # VOICE AI PIPELINE
@@ -452,17 +517,31 @@ async def my_agent(ctx: JobContext):
 
     session = AgentSession(
 
+        # ----------------------------------------------------
+        # SPEECH TO TEXT
+        # ----------------------------------------------------
+
         stt=deepgram.STT(
             model="nova-3",
             language="multi",
         ),
 
+
+        # ----------------------------------------------------
+        # LLM
+        # ----------------------------------------------------
+
         llm=groq.LLM(
             model="llama-3.1-8b-instant",
         ),
 
+
+        # ----------------------------------------------------
+        # TEXT TO SPEECH
+        # ----------------------------------------------------
+
         tts=murf.TTS(
-            voice="Pooja",
+            voice="Anisha",
             style="Conversational",
             tokenizer=tokenize.basic.SentenceTokenizer(
                 min_sentence_len=2
@@ -470,41 +549,92 @@ async def my_agent(ctx: JobContext):
             text_pacing=True,
         ),
 
+
+        # ----------------------------------------------------
+        # MULTILINGUAL TURN DETECTION
+        # ----------------------------------------------------
+
         turn_detection=MultilingualModel(),
+
+
+        # ----------------------------------------------------
+        # VOICE ACTIVITY DETECTION
+        # ----------------------------------------------------
 
         vad=ctx.proc.userdata["vad"],
 
+
+        # ----------------------------------------------------
+        # TOOL LIMIT
+        # ----------------------------------------------------
+
+        max_tool_steps=3,
+
+
+        # ----------------------------------------------------
+        # PREEMPTIVE GENERATION
+        # ----------------------------------------------------
+
         preemptive_generation=True,
     )
+
+
+    # ========================================================
+    # CREATE AGENT DIRECTLY
+    # ========================================================
+    #
+    # IMPORTANT:
+    # We intentionally do NOT use:
+    #
+    #     class Assistant(Agent)
+    #
+    # This avoids the Agent.__init__() instructions error.
+    #
+    # The tool is supplied directly through tools=[...].
+    # ========================================================
+
+    agent = Agent(
+        instructions=SYSTEM_PROMPT,
+        tools=[
+            get_next_exercise,
+        ],
+    )
+
 
     # ========================================================
     # START SESSION
     # ========================================================
 
     await session.start(
-
-        agent=Assistant(
-            user_id=user_id,
-            student_profile=student_profile,
-        ),
-
+        agent=agent,
         room=ctx.room,
-
         room_options=room_io.RoomOptions(
-
             audio_input=room_io.AudioInputOptions(
-
                 noise_cancellation=lambda params: (
                     noise_cancellation.BVCTelephony()
                     if params.participant.kind
                     == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
                     else noise_cancellation.BVC()
                 ),
-
             ),
-
         ),
+    )
 
+
+    logger.info(
+        "Bharat Buddy session started successfully."
+    )
+
+
+    # ========================================================
+    # CONNECT TO LIVEKIT ROOM
+    # ========================================================
+
+    await ctx.connect()
+
+    logger.info(
+        "Bharat Buddy connected to room=%s",
+        ctx.room.name,
     )
 
 
