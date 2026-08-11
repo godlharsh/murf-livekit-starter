@@ -1,8 +1,9 @@
 # ============================================================
 # BHARAT BUDDY
-# Day 5 - Tools
+# Day 6 - Outbound Voice Agent
 # ============================================================
 
+import json
 import logging
 import sys
 from pathlib import Path
@@ -35,13 +36,14 @@ from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 
 # ============================================================
-# LEARNING DATA IMPORT
+# PATH
 # ============================================================
 
 SRC_DIR = Path(__file__).resolve().parent
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
+
 
 from learning_data import find_exercise
 
@@ -81,7 +83,7 @@ If the user asks:
 
 always answer:
 
-"Your name is Rishabh."
+"Your name is Harsh."
 
 Do not say that you do not know the user's name.
 
@@ -134,8 +136,7 @@ Do NOT mention the function name to the student.
 
 Do NOT show JSON.
 
-Do NOT say:
-"get_next_exercise was called."
+Do NOT say that a tool was called.
 
 After the tool returns an exercise, present the question naturally
 like a friendly teacher.
@@ -157,7 +158,7 @@ use beginner.
 
 TOPIC RULE
 
-Understand common topic variations.
+Understand common variations.
 
 Examples:
 
@@ -188,12 +189,41 @@ OBJECTIVES
 
 1. Explain school and college concepts in simple language.
 
-2. Help students improve English speaking, vocabulary,
-   grammar, and communication skills.
+2. Help students improve English speaking, vocabulary, grammar,
+   and communication skills.
 
 3. Build students' confidence.
 
 4. Give useful learning practice using the learning tool.
+
+
+============================================================
+OUTBOUND CALL BEHAVIOUR
+============================================================
+
+When you are making an outbound call:
+
+- Introduce yourself as Bharat Buddy.
+- Clearly say that this is an outbound call.
+- Clearly explain why you are calling.
+- Keep the opening short.
+- Be polite and friendly.
+- Give the person an easy way to end the call.
+
+Example:
+
+"Namaste, this is Bharat Buddy, an AI voice tutor.
+I'm calling to help you with a short learning practice session.
+If this is not a good time, you can simply end the call."
+
+Do not sound like a salesperson.
+
+Do not pressure the person.
+
+If the person says they do not want to continue,
+politely acknowledge it and end the conversation.
+
+Do not repeatedly call the same person during one execution.
 
 
 ============================================================
@@ -309,15 +339,15 @@ STYLE
 
 - Do not sound robotic.
 
-- Do not mention internal tools, functions, APIs,
-  JSON, or implementation details to the student.
+- Do not mention internal tools, functions, APIs, JSON,
+  or implementation details to the student.
 
 
 ============================================================
 FIRST GREETING
 ============================================================
 
-Start the first response of a new conversation with:
+For normal browser conversations, start with:
 
 "Namaste! I'm Bharat Buddy, your AI Voice Tutor.
 I can help you learn in English, Hindi, or Hinglish,
@@ -327,144 +357,150 @@ questions. What would you like to learn today?"
 
 
 # ============================================================
-# DAY 5 TOOL
+# ASSISTANT
 # ============================================================
 
-@function_tool(
-    name="get_next_exercise",
-    description=(
-        "Retrieve a real learning practice exercise from the "
-        "Bharat Buddy local learning dataset. "
-        "Use this tool whenever the student asks for a practice "
-        "question, quiz question, exercise, or wants to practice "
-        "Python, English grammar, mathematics, or computer science. "
-        "If the student does not specify a level, use beginner. "
-        "Do not invent an exercise if this tool returns no result."
-    ),
-)
-async def get_next_exercise(
-    context: RunContext,
-    level: str,
-    topic: str,
-) -> str:
+class Assistant(Agent):
 
-    logger.info(
-        "TOOL CALL -> get_next_exercise | level=%s | topic=%s",
-        level,
-        topic,
+    def __init__(self) -> None:
+        super().__init__(
+            instructions=SYSTEM_PROMPT
+        )
+
+    # ========================================================
+    # DAY 5 LEARNING TOOL
+    # ========================================================
+
+    @function_tool(
+        name="get_next_exercise",
+        description=(
+            "Retrieve a real learning practice exercise from the "
+            "Bharat Buddy local learning dataset. "
+            "Use this tool whenever the student asks for a practice "
+            "question, quiz question, exercise, or wants to practice "
+            "Python, English grammar, mathematics, or computer science. "
+            "If the student does not specify a level, use beginner. "
+            "Do not invent an exercise if this tool returns no result."
+        ),
     )
+    async def get_next_exercise(
+        self,
+        context: RunContext,
+        level: str,
+        topic: str,
+    ) -> str:
 
-    try:
-
-        # ========================================================
-        # NORMALIZE INPUT
-        # ========================================================
-
-        level = level.lower().strip()
-        topic = topic.lower().strip()
-
-
-        # ========================================================
-        # DEFAULT LEVEL
-        # ========================================================
-
-        if level not in {
-            "beginner",
-            "intermediate",
-        }:
-            level = "beginner"
-
-
-        # ========================================================
-        # TOPIC ALIASES
-        # ========================================================
-
-        topic_aliases = {
-            "math": "mathematics",
-            "maths": "mathematics",
-            "english": "english grammar",
-            "grammar": "english grammar",
-            "coding": "python",
-            "programming": "python",
-            "python programming": "python",
-            "python programming language": "python",
-            "cs": "computer science",
-            "computer": "computer science",
-        }
-
-        topic = topic_aliases.get(
-            topic,
+        logger.info(
+            "TOOL CALL -> get_next_exercise | level=%s | topic=%s",
+            level,
             topic,
         )
 
+        try:
 
-        # ========================================================
-        # FIND EXERCISE
-        # ========================================================
+            # ------------------------------------------------
+            # NORMALIZE
+            # ------------------------------------------------
 
-        exercise = find_exercise(
-            level=level,
-            topic=topic,
-        )
+            level = level.lower().strip()
+            topic = topic.lower().strip()
 
+            # ------------------------------------------------
+            # DEFAULT LEVEL
+            # ------------------------------------------------
 
-        # ========================================================
-        # NO RESULT
-        # ========================================================
+            if level not in {
+                "beginner",
+                "intermediate",
+            }:
+                level = "beginner"
 
-        if exercise is None:
+            # ------------------------------------------------
+            # TOPIC ALIASES
+            # ------------------------------------------------
 
-            logger.warning(
-                "TOOL RESULT -> no exercise | level=%s | topic=%s",
+            topic_aliases = {
+                "math": "mathematics",
+                "maths": "mathematics",
+                "english": "english grammar",
+                "grammar": "english grammar",
+                "coding": "python",
+                "programming": "python",
+                "python programming": "python",
+                "python programming language": "python",
+                "cs": "computer science",
+                "computer": "computer science",
+            }
+
+            topic = topic_aliases.get(
+                topic,
+                topic,
+            )
+
+            # ------------------------------------------------
+            # FIND EXERCISE
+            # ------------------------------------------------
+
+            exercise = find_exercise(
+                level=level,
+                topic=topic,
+            )
+
+            # ------------------------------------------------
+            # NO RESULT
+            # ------------------------------------------------
+
+            if exercise is None:
+
+                logger.warning(
+                    "TOOL RESULT -> no exercise | level=%s | topic=%s",
+                    level,
+                    topic,
+                )
+
+                return (
+                    "NO_EXERCISE_FOUND. "
+                    "There is no suitable exercise in the local "
+                    "learning dataset for this level and topic. "
+                    "Do not invent an exercise. "
+                    "Tell the student that this topic is currently "
+                    "unavailable and suggest Python, English grammar, "
+                    "mathematics, or computer science."
+                )
+
+            # ------------------------------------------------
+            # SUCCESS
+            # ------------------------------------------------
+
+            logger.info(
+                "TOOL RESULT -> exercise found | level=%s | topic=%s",
                 level,
                 topic,
             )
 
             return (
-                "NO_EXERCISE_FOUND. "
-                "There is no suitable exercise in the local "
-                "learning dataset for this level and topic. "
-                "Do not invent an exercise. "
-                "Tell the student that this topic is currently "
-                "unavailable and suggest Python, English grammar, "
-                "mathematics, or computer science."
+                "EXERCISE_FOUND. "
+                f"Topic: {exercise['topic']}. "
+                f"Level: {exercise['level']}. "
+                f"Question: {exercise['question']} "
+                f"Answer: {exercise['answer']} "
+                f"Explanation: {exercise['explanation']} "
+                "Source: Bharat Buddy local learning dataset."
             )
 
+        except Exception as error:
 
-        # ========================================================
-        # SUCCESS
-        # ========================================================
+            logger.exception(
+                "TOOL ERROR -> get_next_exercise failed: %s",
+                error,
+            )
 
-        logger.info(
-            "TOOL RESULT -> exercise found | level=%s | topic=%s",
-            level,
-            topic,
-        )
-
-        return (
-            "EXERCISE_FOUND. "
-            f"Topic: {exercise['topic']}. "
-            f"Level: {exercise['level']}. "
-            f"Question: {exercise['question']} "
-            f"Answer: {exercise['answer']} "
-            f"Explanation: {exercise['explanation']} "
-            "Source: Bharat Buddy local learning dataset."
-        )
-
-
-    except Exception as error:
-
-        logger.exception(
-            "TOOL ERROR -> get_next_exercise failed: %s",
-            error,
-        )
-
-        return (
-            "TOOL_ERROR. "
-            "The learning exercise could not be loaded right now. "
-            "Tell the student that the exercise service is "
-            "temporarily unavailable and ask them to try again."
-        )
+            return (
+                "TOOL_ERROR. "
+                "The learning exercise could not be loaded right now. "
+                "Tell the student that the exercise service is "
+                "temporarily unavailable and ask them to try again."
+            )
 
 
 # ============================================================
@@ -510,6 +546,36 @@ async def my_agent(ctx: JobContext):
         ctx.room.name,
     )
 
+    # ========================================================
+    # CHECK OUTBOUND CALL METADATA
+    # ========================================================
+
+    outbound_phone = None
+
+    try:
+
+        metadata = ctx.job.metadata
+
+        if metadata:
+
+            data = json.loads(metadata)
+
+            outbound_phone = data.get("phone_number")
+
+    except (json.JSONDecodeError, TypeError):
+
+        logger.warning(
+            "Job metadata was not valid outbound JSON: %s",
+            ctx.job.metadata,
+        )
+
+    if outbound_phone:
+
+        logger.info(
+            "Outbound call detected | destination=%s",
+            outbound_phone,
+        )
+
 
     # ========================================================
     # VOICE AI PIPELINE
@@ -526,7 +592,6 @@ async def my_agent(ctx: JobContext):
             language="multi",
         ),
 
-
         # ----------------------------------------------------
         # LLM
         # ----------------------------------------------------
@@ -534,7 +599,6 @@ async def my_agent(ctx: JobContext):
         llm=groq.LLM(
             model="llama-3.1-8b-instant",
         ),
-
 
         # ----------------------------------------------------
         # TEXT TO SPEECH
@@ -544,11 +608,10 @@ async def my_agent(ctx: JobContext):
             voice="Anisha",
             style="Conversational",
             tokenizer=tokenize.basic.SentenceTokenizer(
-                min_sentence_len=2
+                min_sentence_len=2,
             ),
             text_pacing=True,
         ),
-
 
         # ----------------------------------------------------
         # MULTILINGUAL TURN DETECTION
@@ -556,20 +619,17 @@ async def my_agent(ctx: JobContext):
 
         turn_detection=MultilingualModel(),
 
-
         # ----------------------------------------------------
         # VOICE ACTIVITY DETECTION
         # ----------------------------------------------------
 
         vad=ctx.proc.userdata["vad"],
 
-
         # ----------------------------------------------------
-        # TOOL LIMIT
+        # TOOL CALL LIMIT
         # ----------------------------------------------------
 
         max_tool_steps=3,
-
 
         # ----------------------------------------------------
         # PREEMPTIVE GENERATION
@@ -580,33 +640,11 @@ async def my_agent(ctx: JobContext):
 
 
     # ========================================================
-    # CREATE AGENT DIRECTLY
-    # ========================================================
-    #
-    # IMPORTANT:
-    # We intentionally do NOT use:
-    #
-    #     class Assistant(Agent)
-    #
-    # This avoids the Agent.__init__() instructions error.
-    #
-    # The tool is supplied directly through tools=[...].
-    # ========================================================
-
-    agent = Agent(
-        instructions=SYSTEM_PROMPT,
-        tools=[
-            get_next_exercise,
-        ],
-    )
-
-
-    # ========================================================
     # START SESSION
     # ========================================================
 
     await session.start(
-        agent=agent,
+        agent=Assistant(),
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -619,7 +657,6 @@ async def my_agent(ctx: JobContext):
             ),
         ),
     )
-
 
     logger.info(
         "Bharat Buddy session started successfully."
@@ -636,6 +673,65 @@ async def my_agent(ctx: JobContext):
         "Bharat Buddy connected to room=%s",
         ctx.room.name,
     )
+
+
+    # ========================================================
+    # OUTBOUND CALL GREETING
+    # ========================================================
+
+    if outbound_phone:
+
+        # The outbound script uses this same identity.
+        participant_identity = (
+            "phone_" +
+            "".join(
+                character
+                for character in outbound_phone
+                if character.isalnum()
+            )[-24:]
+        )
+
+        try:
+
+            participant = await ctx.wait_for_participant(
+                identity=participant_identity,
+            )
+
+            logger.info(
+                "Outbound SIP participant connected | identity=%s",
+                participant.identity,
+            )
+
+            # Wait until the SIP call becomes active.
+            try:
+
+                await ctx.wait_for_participant(
+                    identity=participant_identity,
+                    kind=rtc.ParticipantKind.PARTICIPANT_KIND_SIP,
+                )
+
+            except Exception:
+                pass
+
+            await session.generate_reply(
+                instructions=(
+                    "This is an outbound call. "
+                    "Start the conversation immediately. "
+                    "Say exactly who you are, why you are calling, "
+                    "and that the person can end the call if they "
+                    "do not want to continue. "
+                    "Keep the opening short and friendly. "
+                    "Do not mention APIs, tools, LiveKit, SIP, "
+                    "or technical details."
+                ),
+            )
+
+        except Exception as error:
+
+            logger.exception(
+                "Outbound participant did not connect: %s",
+                error,
+            )
 
 
 # ============================================================
