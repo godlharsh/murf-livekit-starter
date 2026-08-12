@@ -1,6 +1,6 @@
 # ============================================================
 # BHARAT BUDDY
-# Day 6 - Outbound Voice Agent
+# Day 7 - Human Escalation Agent
 # ============================================================
 
 import json
@@ -46,6 +46,7 @@ if str(SRC_DIR) not in sys.path:
 
 
 from learning_data import find_exercise
+from escalation import create_escalation
 
 
 # ============================================================
@@ -71,7 +72,7 @@ Your goal is to make learning simple, interactive, and enjoyable.
 
 USER INFORMATION
 
-The user's name is Rishabh.
+The user's name is Harsh.
 
 If the user asks:
 
@@ -181,6 +182,58 @@ Examples:
 -> topic = computer science
 
 If the topic is unsupported, do not invent a question.
+
+
+============================================================
+HUMAN ESCALATION
+============================================================
+
+You have access to one escalation tool:
+
+create_escalation
+
+Use this tool ONLY in these two situations:
+
+1. The student sounds emotionally distressed - upset, frustrated,
+   hopeless, anxious, or crying. Examples: "I can't do this",
+   "I'm so stupid", "I want to give up", or similar.
+
+2. The student explicitly asks to talk to a real teacher or human,
+   OR describes something that sounds like a learning difficulty
+   that you should not diagnose (e.g. "I always mix up letters",
+   "I can never remember what I just read").
+
+VERY IMPORTANT RULES
+
+- Before calling create_escalation, you MUST first tell the student
+  what information you would like to share with a human helper
+  (their name, what happened, urgency, language, preferred
+  follow-up method) and ask for their permission.
+
+- Only call create_escalation if the student clearly agrees
+  (says yes, okay, sure, please do, etc.).
+
+- If the student says no or seems unsure, do not call the tool.
+  Instead, calmly continue supporting them yourself and offer
+  to ask again later if they change their mind.
+
+- Never include passwords, OTPs, PINs, or account numbers in the
+  escalation summary.
+
+- Do not call this tool for normal questions, wrong answers, or
+  general confusion about a topic. Only for real emotional distress
+  or a genuine need for a human teacher.
+
+- Before calling the tool, decide an urgency level yourself:
+  "low", "medium", "high", or "emergency" based on how serious
+  the situation sounds.
+
+- After the tool returns a reference ID, tell the student the
+  reference ID clearly and explain honestly what happens next -
+  a human will follow up, but you cannot promise an exact time.
+
+- Do not mention the function name, JSON, or implementation
+  details to the student.
 
 
 ============================================================
@@ -500,6 +553,72 @@ class Assistant(Agent):
                 "The learning exercise could not be loaded right now. "
                 "Tell the student that the exercise service is "
                 "temporarily unavailable and ask them to try again."
+            )
+
+    # ========================================================
+    # DAY 7 ESCALATION TOOL
+    # ========================================================
+
+    @function_tool(
+        name="create_escalation",
+        description=(
+            "Create a human escalation request when the student is "
+            "emotionally distressed, or explicitly asks for a real "
+            "teacher/human, or describes something that sounds like "
+            "a learning difficulty. Call this ONLY after the student "
+            "has given explicit permission to share their information "
+            "with a human helper. Decide urgency yourself: "
+            "'low', 'medium', 'high', or 'emergency'."
+        ),
+    )
+    async def escalate(
+        self,
+        context: RunContext,
+        learner_name: str,
+        reason: str,
+        already_checked: str,
+        urgency: str,
+        language: str,
+        follow_up_method: str,
+    ) -> str:
+
+        logger.info(
+            "TOOL CALL -> create_escalation | reason=%s | urgency=%s",
+            reason,
+            urgency,
+        )
+
+        try:
+
+            result = await create_escalation(
+                learner_name=learner_name,
+                reason=reason,
+                already_checked=already_checked,
+                urgency=urgency,
+                language=language,
+                follow_up_method=follow_up_method,
+            )
+
+            logger.info(
+                "TOOL RESULT -> create_escalation | %s",
+                result,
+            )
+
+            return result
+
+        except Exception as error:
+
+            logger.exception(
+                "TOOL ERROR -> create_escalation failed: %s",
+                error,
+            )
+
+            return (
+                "TOOL_ERROR. "
+                "The escalation could not be created right now. "
+                "Tell the student you are having trouble reaching "
+                "the support team and to try again shortly, or "
+                "continue helping them yourself."
             )
 
 
