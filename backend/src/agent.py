@@ -1,6 +1,6 @@
 # ============================================================
 # BHARAT BUDDY
-# Day 7 - Human Escalation Agent
+# Day 8 - Call Analytics Agent
 # ============================================================
 
 import json
@@ -47,6 +47,7 @@ if str(SRC_DIR) not in sys.path:
 
 from learning_data import find_exercise
 from escalation import create_escalation
+from calls import init_calls_db, start_call, end_call
 
 
 # ============================================================
@@ -56,6 +57,8 @@ from escalation import create_escalation
 logger = logging.getLogger("bharat-buddy")
 
 load_dotenv(".env.local")
+
+init_calls_db()
 
 
 # ============================================================
@@ -72,7 +75,7 @@ Your goal is to make learning simple, interactive, and enjoyable.
 
 USER INFORMATION
 
-The user's name is Harsh.
+The user's name is Rishabh.
 
 If the user asks:
 
@@ -90,6 +93,16 @@ Do not say that you do not know the user's name.
 
 Use the user's name naturally when appropriate,
 but do not overuse it.
+
+
+============================================================
+LANGUAGE & SCRIPT
+============================================================
+
+Always write every language in its own native script.
+
+- Hindi -> Devanagari (नमस्ते), never romanized (never "namaste").
+- Same rule for all non-English languages.
 
 
 ============================================================
@@ -303,7 +316,7 @@ LANGUAGE
 - If the user speaks English, respond in natural Indian English.
 
 - If the user speaks Hindi, respond in natural, fluent Hindi
-  with clear and natural Hindi pronunciation.
+  with clear and natural Hindi pronunciation, in Devanagari script.
 
 - If the user speaks Hinglish, respond in natural Indian Hinglish,
   keeping commonly used English words naturally mixed with Hindi.
@@ -419,6 +432,7 @@ class Assistant(Agent):
         super().__init__(
             instructions=SYSTEM_PROMPT
         )
+        self.exercise_delivered = False
 
     # ========================================================
     # DAY 5 LEARNING TOOL
@@ -530,6 +544,8 @@ class Assistant(Agent):
                 level,
                 topic,
             )
+
+            self.exercise_delivered = True
 
             return (
                 "EXERCISE_FOUND. "
@@ -695,6 +711,14 @@ async def my_agent(ctx: JobContext):
             outbound_phone,
         )
 
+    # ========================================================
+    # DAY 8 - START CALL TRACKING
+    # ========================================================
+
+    call_id = ctx.room.name
+    channel = "sip" if outbound_phone else "browser"
+    start_call(call_id=call_id, channel=channel)
+
 
     # ========================================================
     # VOICE AI PIPELINE
@@ -762,8 +786,10 @@ async def my_agent(ctx: JobContext):
     # START SESSION
     # ========================================================
 
+    assistant = Assistant()
+
     await session.start(
-        agent=Assistant(),
+        agent=assistant,
         room=ctx.room,
         room_options=room_io.RoomOptions(
             audio_input=room_io.AudioInputOptions(
@@ -780,6 +806,24 @@ async def my_agent(ctx: JobContext):
     logger.info(
         "Bharat Buddy session started successfully."
     )
+
+    # ========================================================
+    # DAY 8 - END CALL TRACKING ON SHUTDOWN
+    # ========================================================
+
+    def _on_shutdown():
+        end_call(
+            call_id=call_id,
+            success=assistant.exercise_delivered,
+            reason="exercise_completed" if assistant.exercise_delivered else "no_exercise_delivered",
+        )
+        logger.info(
+            "Call ended | call_id=%s | success=%s",
+            call_id,
+            assistant.exercise_delivered,
+        )
+
+    ctx.add_shutdown_callback(_on_shutdown)
 
 
     # ========================================================
