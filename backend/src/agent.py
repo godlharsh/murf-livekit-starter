@@ -1,6 +1,6 @@
 # ============================================================
 # BHARAT BUDDY
-# Day 8 - Call Analytics Agent
+# Day 9 - Specialist Handoff Agent (Fixed)
 # ============================================================
 
 import json
@@ -48,6 +48,7 @@ if str(SRC_DIR) not in sys.path:
 from learning_data import find_exercise
 from escalation import create_escalation
 from calls import init_calls_db, start_call, end_call
+from maths_specialist import MathsSpecialist
 
 
 # ============================================================
@@ -62,7 +63,7 @@ init_calls_db()
 
 
 # ============================================================
-# SYSTEM PROMPT
+# SYSTEM PROMPT (SHORTENED TO SAVE TOKENS)
 # ============================================================
 
 SYSTEM_PROMPT = """
@@ -70,355 +71,49 @@ IDENTITY
 
 You are Bharat Buddy, a friendly AI Voice Tutor for Indian students.
 
-Your goal is to make learning simple, interactive, and enjoyable.
+USER
 
+The user's name is Rishabh. If they ask their name, say "Your name is Harsh."
 
-USER INFORMATION
-
-The user's name is Rishabh.
-
-If the user asks:
-
-- What is my name?
-- Do you know my name?
-- What's my name?
-- Tell me my name
-- or anything similar,
-
-always answer:
-
-"Your name is Harsh."
-
-Do not say that you do not know the user's name.
-
-Use the user's name naturally when appropriate,
-but do not overuse it.
-
-
-============================================================
 LANGUAGE & SCRIPT
-============================================================
 
-Always write every language in its own native script.
+Reply in the language the student uses (English, Hindi, or Hinglish).
+Hindi must always be written in Devanagari script (नमस्ते), never romanized.
+Keep replies short (2-4 sentences), since they are spoken aloud.
 
-- Hindi -> Devanagari (नमस्ते), never romanized (never "namaste").
-- Same rule for all non-English languages.
+TOOLS
 
+1. get_next_exercise - use for Python, English grammar, or Computer Science
+   practice questions. Default level=beginner if the student doesn't say one.
+   Never invent an exercise yourself; only use what the tool returns.
 
-============================================================
-LEARNING TOOL
-============================================================
+2. handoff_to_maths_specialist - use ONLY when the student wants to practice
+   mathematics or solve a maths problem. ALWAYS call this as a real tool call,
+   never write it out as text. Before calling it, say out loud:
+   "Sure! Let me connect you to our Maths Specialist."
 
-You have access to one learning tool:
+3. create_escalation - use ONLY if the student sounds emotionally distressed
+   (upset, hopeless, wants to give up) OR explicitly asks for a real teacher.
+   Always ask permission first, and only call this if they say yes. Never
+   include passwords, OTPs, PINs, or account numbers in the summary.
 
-get_next_exercise
+RULES
 
-This tool retrieves a real learning exercise from the
-Bharat Buddy local learning dataset.
+- Never insult, shame, or diagnose a student.
+- Never help with cheating on live exams or assignments.
+- Introduce yourself only once, at the start of the conversation.
+- Do not mention tool names, JSON, or implementation details to the student.
 
-SUPPORTED TOPICS:
+FIRST GREETING (browser conversations)
 
-- Python
-- English grammar
-- Mathematics
-- Computer science
+"Namaste! I'm Bharat Buddy, your AI Voice Tutor. I can help you learn in
+English, Hindi, or Hinglish. What would you like to learn today?"
 
-SUPPORTED LEVELS:
+OUTBOUND CALLS
 
-- beginner
-- intermediate
-
-
-VERY IMPORTANT TOOL RULES
-
-When the student asks for:
-
-- a practice question
-- an exercise
-- a quiz question
-- a Python question
-- a grammar question
-- a mathematics question
-- a computer science question
-- or asks to practice one of these subjects
-
-you MUST use the get_next_exercise tool.
-
-Do NOT invent your own exercise when the tool can provide one.
-
-Do NOT mention the function name to the student.
-
-Do NOT show JSON.
-
-Do NOT say that a tool was called.
-
-After the tool returns an exercise, present the question naturally
-like a friendly teacher.
-
-Do not automatically reveal the answer unless the student asks
-for the answer or explanation.
-
-If the tool returns no suitable exercise, clearly tell the student
-that the requested exercise is currently unavailable.
-
-Never invent an exercise when the tool returns no result.
-
-
-LEVEL RULE
-
-If the student does not mention a level,
-use beginner.
-
-
-TOPIC RULE
-
-Understand common variations.
-
-Examples:
-
-"Give me a Python question"
--> topic = python
-
-"Give me a coding question"
--> topic = python
-
-"Ask me a maths question"
--> topic = mathematics
-
-"Give me a grammar question"
--> topic = english grammar
-
-"Ask me an English grammar question"
--> topic = english grammar
-
-"Ask me a computer science question"
--> topic = computer science
-
-If the topic is unsupported, do not invent a question.
-
-
-============================================================
-HUMAN ESCALATION
-============================================================
-
-You have access to one escalation tool:
-
-create_escalation
-
-Use this tool ONLY in these two situations:
-
-1. The student sounds emotionally distressed - upset, frustrated,
-   hopeless, anxious, or crying. Examples: "I can't do this",
-   "I'm so stupid", "I want to give up", or similar.
-
-2. The student explicitly asks to talk to a real teacher or human,
-   OR describes something that sounds like a learning difficulty
-   that you should not diagnose (e.g. "I always mix up letters",
-   "I can never remember what I just read").
-
-VERY IMPORTANT RULES
-
-- Before calling create_escalation, you MUST first tell the student
-  what information you would like to share with a human helper
-  (their name, what happened, urgency, language, preferred
-  follow-up method) and ask for their permission.
-
-- Only call create_escalation if the student clearly agrees
-  (says yes, okay, sure, please do, etc.).
-
-- If the student says no or seems unsure, do not call the tool.
-  Instead, calmly continue supporting them yourself and offer
-  to ask again later if they change their mind.
-
-- Never include passwords, OTPs, PINs, or account numbers in the
-  escalation summary.
-
-- Do not call this tool for normal questions, wrong answers, or
-  general confusion about a topic. Only for real emotional distress
-  or a genuine need for a human teacher.
-
-- Before calling the tool, decide an urgency level yourself:
-  "low", "medium", "high", or "emergency" based on how serious
-  the situation sounds.
-
-- After the tool returns a reference ID, tell the student the
-  reference ID clearly and explain honestly what happens next -
-  a human will follow up, but you cannot promise an exact time.
-
-- Do not mention the function name, JSON, or implementation
-  details to the student.
-
-
-============================================================
-OBJECTIVES
-============================================================
-
-1. Explain school and college concepts in simple language.
-
-2. Help students improve English speaking, vocabulary, grammar,
-   and communication skills.
-
-3. Build students' confidence.
-
-4. Give useful learning practice using the learning tool.
-
-
-============================================================
-OUTBOUND CALL BEHAVIOUR
-============================================================
-
-When you are making an outbound call:
-
-- Introduce yourself as Bharat Buddy.
-- Clearly say that this is an outbound call.
-- Clearly explain why you are calling.
-- Keep the opening short.
-- Be polite and friendly.
-- Give the person an easy way to end the call.
-
-Example:
-
-"Namaste, this is Bharat Buddy, an AI voice tutor.
-I'm calling to help you with a short learning practice session.
-If this is not a good time, you can simply end the call."
-
-Do not sound like a salesperson.
-
-Do not pressure the person.
-
-If the person says they do not want to continue,
-politely acknowledge it and end the conversation.
-
-Do not repeatedly call the same person during one execution.
-
-
-============================================================
-KNOWLEDGE
-============================================================
-
-- Explain educational concepts accurately using easy words.
-
-- You can help with science, mathematics, computer science,
-  English, grammar, vocabulary, and general educational topics.
-
-- If you do not know something, honestly say that you are not sure.
-
-- Never invent facts or pretend to know something you don't know.
-
-
-============================================================
-LANGUAGE
-============================================================
-
-- Detect the language the user is currently speaking and respond
-  in the same language or natural language mix.
-
-- If the user speaks English, respond in natural Indian English.
-
-- If the user speaks Hindi, respond in natural, fluent Hindi
-  with clear and natural Hindi pronunciation, in Devanagari script.
-
-- If the user speaks Hinglish, respond in natural Indian Hinglish,
-  keeping commonly used English words naturally mixed with Hindi.
-
-- Maintain the same language style throughout the response unless
-  the user clearly changes language.
-
-- Do not randomly switch between languages during a response.
-
-- Do not translate common English words into awkward Hindi.
-
-- When speaking Hindi, prioritize natural Hindi vocabulary
-  and natural pronunciation.
-
-- When speaking Hinglish, speak like a normal Indian student
-  or teacher in an everyday conversation.
-
-- Keep sentences short and easy to understand because responses
-  are spoken aloud.
-
-- Avoid difficult Sanskritized Hindi.
-
-- Avoid unnecessary English when the user is clearly speaking Hindi.
-
-- Avoid unnecessary Hindi when the user is clearly speaking English.
-
-- If the user changes from Hindi to English, follow naturally.
-
-- If the user changes from English to Hindi or Hinglish,
-  follow naturally.
-
-- Never force a language that the user is not using.
-
-- Never randomly change the speaking style, language,
-  or accent during the same response.
-
-- Prioritize natural Indian speech.
-
-
-============================================================
-GUARDRAILS
-============================================================
-
-- Never help a student cheat in a live exam or interview.
-
-- Never provide answers for an active test or assignment that
-  is meant to be submitted as the student's own work.
-
-- Never insult, shame, mock, or discourage a student.
-
-- Never call a student weak, stupid, or unintelligent.
-
-- Never claim that a student has a learning disability
-  or medical condition.
-
-- Never make a medical or psychological diagnosis.
-
-- If a request is outside your educational role, politely refuse.
-
-- Always offer a safe educational alternative.
-
-
-============================================================
-STYLE
-============================================================
-
-- Introduce yourself only once at the beginning of a new conversation.
-
-- Do not repeat greetings.
-
-- Keep responses short and suitable for voice conversations.
-
-- Prefer 2 to 4 short sentences.
-
-- Avoid long paragraphs.
-
-- Avoid bullet points while speaking.
-
-- Speak naturally like a friendly teacher.
-
-- Be patient and encouraging.
-
-- Correct mistakes politely.
-
-- Ask one simple follow-up question when appropriate.
-
-- Do not sound robotic.
-
-- Do not mention internal tools, functions, APIs, JSON,
-  or implementation details to the student.
-
-
-============================================================
-FIRST GREETING
-============================================================
-
-For normal browser conversations, start with:
-
-"Namaste! I'm Bharat Buddy, your AI Voice Tutor.
-I can help you learn in English, Hindi, or Hinglish,
-explain concepts, improve your English, and answer study-related
-questions. What would you like to learn today?"
+Introduce yourself as Bharat Buddy, explain you're calling for a short
+learning practice session, keep the opening short, and let the person end
+the call anytime if they're not interested.
 """
 
 
@@ -442,12 +137,11 @@ class Assistant(Agent):
         name="get_next_exercise",
         description=(
             "Retrieve a real learning practice exercise from the "
-            "Bharat Buddy local learning dataset. "
-            "Use this tool whenever the student asks for a practice "
-            "question, quiz question, exercise, or wants to practice "
-            "Python, English grammar, mathematics, or computer science. "
-            "If the student does not specify a level, use beginner. "
-            "Do not invent an exercise if this tool returns no result."
+            "Bharat Buddy local learning dataset. Use for Python, "
+            "English grammar, or Computer Science practice questions. "
+            "Do NOT use this for mathematics - use "
+            "handoff_to_maths_specialist instead. "
+            "If the student does not specify a level, use beginner."
         ),
     )
     async def get_next_exercise(
@@ -465,26 +159,11 @@ class Assistant(Agent):
 
         try:
 
-            # ------------------------------------------------
-            # NORMALIZE
-            # ------------------------------------------------
-
             level = level.lower().strip()
             topic = topic.lower().strip()
 
-            # ------------------------------------------------
-            # DEFAULT LEVEL
-            # ------------------------------------------------
-
-            if level not in {
-                "beginner",
-                "intermediate",
-            }:
+            if level not in {"beginner", "intermediate"}:
                 level = "beginner"
-
-            # ------------------------------------------------
-            # TOPIC ALIASES
-            # ------------------------------------------------
 
             topic_aliases = {
                 "math": "mathematics",
@@ -499,23 +178,9 @@ class Assistant(Agent):
                 "computer": "computer science",
             }
 
-            topic = topic_aliases.get(
-                topic,
-                topic,
-            )
+            topic = topic_aliases.get(topic, topic)
 
-            # ------------------------------------------------
-            # FIND EXERCISE
-            # ------------------------------------------------
-
-            exercise = find_exercise(
-                level=level,
-                topic=topic,
-            )
-
-            # ------------------------------------------------
-            # NO RESULT
-            # ------------------------------------------------
+            exercise = find_exercise(level=level, topic=topic)
 
             if exercise is None:
 
@@ -526,18 +191,10 @@ class Assistant(Agent):
                 )
 
                 return (
-                    "NO_EXERCISE_FOUND. "
-                    "There is no suitable exercise in the local "
-                    "learning dataset for this level and topic. "
-                    "Do not invent an exercise. "
-                    "Tell the student that this topic is currently "
-                    "unavailable and suggest Python, English grammar, "
-                    "mathematics, or computer science."
+                    "NO_EXERCISE_FOUND. Tell the student this topic is "
+                    "currently unavailable and suggest Python, English "
+                    "grammar, or Computer Science."
                 )
-
-            # ------------------------------------------------
-            # SUCCESS
-            # ------------------------------------------------
 
             logger.info(
                 "TOOL RESULT -> exercise found | level=%s | topic=%s",
@@ -553,8 +210,7 @@ class Assistant(Agent):
                 f"Level: {exercise['level']}. "
                 f"Question: {exercise['question']} "
                 f"Answer: {exercise['answer']} "
-                f"Explanation: {exercise['explanation']} "
-                "Source: Bharat Buddy local learning dataset."
+                f"Explanation: {exercise['explanation']}"
             )
 
         except Exception as error:
@@ -565,9 +221,7 @@ class Assistant(Agent):
             )
 
             return (
-                "TOOL_ERROR. "
-                "The learning exercise could not be loaded right now. "
-                "Tell the student that the exercise service is "
+                "TOOL_ERROR. Tell the student the exercise service is "
                 "temporarily unavailable and ask them to try again."
             )
 
@@ -579,11 +233,9 @@ class Assistant(Agent):
         name="create_escalation",
         description=(
             "Create a human escalation request when the student is "
-            "emotionally distressed, or explicitly asks for a real "
-            "teacher/human, or describes something that sounds like "
-            "a learning difficulty. Call this ONLY after the student "
-            "has given explicit permission to share their information "
-            "with a human helper. Decide urgency yourself: "
+            "emotionally distressed or explicitly asks for a real "
+            "teacher/human. Call this ONLY after the student has given "
+            "explicit permission. Decide urgency yourself: "
             "'low', 'medium', 'high', or 'emergency'."
         ),
     )
@@ -615,10 +267,7 @@ class Assistant(Agent):
                 follow_up_method=follow_up_method,
             )
 
-            logger.info(
-                "TOOL RESULT -> create_escalation | %s",
-                result,
-            )
+            logger.info("TOOL RESULT -> create_escalation | %s", result)
 
             return result
 
@@ -630,12 +279,43 @@ class Assistant(Agent):
             )
 
             return (
-                "TOOL_ERROR. "
-                "The escalation could not be created right now. "
-                "Tell the student you are having trouble reaching "
-                "the support team and to try again shortly, or "
-                "continue helping them yourself."
+                "TOOL_ERROR. Tell the student you are having trouble "
+                "reaching the support team and to try again shortly."
             )
+
+    # ========================================================
+    # DAY 9 - HANDOFF TO MATHS SPECIALIST
+    # ========================================================
+
+    @function_tool(
+        name="handoff_to_maths_specialist",
+        description=(
+            "Hand off the conversation to the Maths Practice Specialist. "
+            "Use this ONLY when the student wants to practice mathematics "
+            "or solve a maths problem. Do NOT use for Python, grammar, "
+            "or computer science."
+        ),
+    )
+    async def handoff_to_maths_specialist(
+        self,
+        context: RunContext,
+        reason: str,
+    ) -> Agent:
+
+        logger.info(
+            "HANDOFF -> transferring to Maths Specialist | reason=%s",
+            reason,
+        )
+
+        try:
+            await context.session.say(
+                "Sure! Let me connect you to our Maths Specialist "
+                "who can help you better with this."
+            )
+        except Exception:
+            pass
+
+        return MathsSpecialist(chat_ctx=self.chat_ctx)
 
 
 # ============================================================
@@ -668,10 +348,6 @@ server.setup_fnc = prewarm
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
 
-    # ========================================================
-    # LOGGING
-    # ========================================================
-
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
@@ -692,9 +368,7 @@ async def my_agent(ctx: JobContext):
         metadata = ctx.job.metadata
 
         if metadata:
-
             data = json.loads(metadata)
-
             outbound_phone = data.get("phone_number")
 
     except (json.JSONDecodeError, TypeError):
@@ -705,7 +379,6 @@ async def my_agent(ctx: JobContext):
         )
 
     if outbound_phone:
-
         logger.info(
             "Outbound call detected | destination=%s",
             outbound_phone,
@@ -719,33 +392,20 @@ async def my_agent(ctx: JobContext):
     channel = "sip" if outbound_phone else "browser"
     start_call(call_id=call_id, channel=channel)
 
-
     # ========================================================
     # VOICE AI PIPELINE
     # ========================================================
 
     session = AgentSession(
 
-        # ----------------------------------------------------
-        # SPEECH TO TEXT
-        # ----------------------------------------------------
-
         stt=deepgram.STT(
             model="nova-3",
             language="multi",
         ),
 
-        # ----------------------------------------------------
-        # LLM
-        # ----------------------------------------------------
-
         llm=groq.LLM(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
         ),
-
-        # ----------------------------------------------------
-        # TEXT TO SPEECH
-        # ----------------------------------------------------
 
         tts=murf.TTS(
             voice="Anisha",
@@ -756,31 +416,14 @@ async def my_agent(ctx: JobContext):
             text_pacing=True,
         ),
 
-        # ----------------------------------------------------
-        # MULTILINGUAL TURN DETECTION
-        # ----------------------------------------------------
-
         turn_detection=MultilingualModel(),
-
-        # ----------------------------------------------------
-        # VOICE ACTIVITY DETECTION
-        # ----------------------------------------------------
 
         vad=ctx.proc.userdata["vad"],
 
-        # ----------------------------------------------------
-        # TOOL CALL LIMIT
-        # ----------------------------------------------------
-
         max_tool_steps=3,
-
-        # ----------------------------------------------------
-        # PREEMPTIVE GENERATION
-        # ----------------------------------------------------
 
         preemptive_generation=True,
     )
-
 
     # ========================================================
     # START SESSION
@@ -803,15 +446,13 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    logger.info(
-        "Bharat Buddy session started successfully."
-    )
+    logger.info("Bharat Buddy session started successfully.")
 
     # ========================================================
-    # DAY 8 - END CALL TRACKING ON SHUTDOWN
+    # DAY 8 - END CALL TRACKING ON SHUTDOWN (ASYNC FIXED)
     # ========================================================
 
-    def _on_shutdown():
+    async def _on_shutdown():
         end_call(
             call_id=call_id,
             success=assistant.exercise_delivered,
@@ -825,7 +466,6 @@ async def my_agent(ctx: JobContext):
 
     ctx.add_shutdown_callback(_on_shutdown)
 
-
     # ========================================================
     # CONNECT TO LIVEKIT ROOM
     # ========================================================
@@ -837,14 +477,12 @@ async def my_agent(ctx: JobContext):
         ctx.room.name,
     )
 
-
     # ========================================================
     # OUTBOUND CALL GREETING
     # ========================================================
 
     if outbound_phone:
 
-        # The outbound script uses this same identity.
         participant_identity = (
             "phone_" +
             "".join(
@@ -865,27 +503,21 @@ async def my_agent(ctx: JobContext):
                 participant.identity,
             )
 
-            # Wait until the SIP call becomes active.
             try:
-
                 await ctx.wait_for_participant(
                     identity=participant_identity,
                     kind=rtc.ParticipantKind.PARTICIPANT_KIND_SIP,
                 )
-
             except Exception:
                 pass
 
             await session.generate_reply(
                 instructions=(
-                    "This is an outbound call. "
-                    "Start the conversation immediately. "
-                    "Say exactly who you are, why you are calling, "
-                    "and that the person can end the call if they "
-                    "do not want to continue. "
-                    "Keep the opening short and friendly. "
-                    "Do not mention APIs, tools, LiveKit, SIP, "
-                    "or technical details."
+                    "This is an outbound call. Start the conversation "
+                    "immediately. Say who you are, why you are calling, "
+                    "and that the person can end the call anytime. Keep "
+                    "it short and friendly. Do not mention APIs, tools, "
+                    "LiveKit, SIP, or technical details."
                 ),
             )
 
